@@ -1,4 +1,9 @@
 '''Train a Siamese MLP on pairs of digits from the MNIST dataset.
+
+This script uses a generator to load chunks of data into memory for training instead of 
+the entire data set. This is useful in situations where the data set does not fit into
+memory.
+
 It follows Hadsell-et-al.'06 [1] by computing the Euclidean distance on the
 output of the shared network and by optimizing the contrastive loss (see paper
 for mode details).
@@ -6,7 +11,6 @@ for mode details).
 	http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
 
 THEANO_FLAGS=mode=FAST_RUN,device=gpu,floatX=float32 python mnist_siamese_generator.py
-
 '''
 from __future__ import absolute_import
 from __future__ import print_function
@@ -240,7 +244,8 @@ def do_split():
 		im.save('test'+str(i)+'.png')	
 
 
-def fit_model():	
+if __name__ == "__main__":
+#def fit_model():	
 	#unzip the mnist data into train and test directories and create labels_train.csv and labels_test.csv
 	do_split()
 	
