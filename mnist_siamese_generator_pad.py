@@ -189,8 +189,15 @@ def preprocess(X):
 	#return X / 255.0
 	
 	#this preprocessor crops one pixel along each of the sides of the images
+	#this is a teeny tiny improvement on the "no preprocessing" option
 	#return X[:, :, 1:-1, 1:-1] / 255.0	
-		
+	
+	#this preprocessor adds pixels along the bottom and side of the images
+	#t = np.zeros((X.shape[0], X.shape[1], 36, 36))
+	#t[:, :, 0:X.shape[2], 0:X.shape[3]] = X/255.0
+	#return t
+	
+	
 	#if data is in training set, then the chunk size is 1.
 	#if data is in training set, randomly scale the image size up or down	
 	if X.shape[0] == 1:
@@ -218,11 +225,12 @@ def preprocess(X):
 	t = np.tile(t, (1, 9, 9))
 	t = np.tile(t.reshape((1,t.shape[0], t.shape[1], t.shape[2])), (X.shape[0], 1, 1, 1))
 	
-	i = np.random.randint(0, 4*9-X.shape[2])
-	j = np.random.randint(0, 4*9-X.shape[3])
-	t[:, :, i : i+X.shape[2], j:j+X.shape[3]] = X/255.0
-
-
+	#padding only one side and the bottom means that the training loss -> nan after a few
+	#epochs because there is never any information in these regions!
+	#t = np.zeros((X.shape[1], 4,4))
+	#i = np.random.randint(0, 4*9-X.shape[2])
+	#j = np.random.randint(0, 4*9-X.shape[3])
+	#t[:, :, i : i+X.shape[2], j:j+X.shape[3]] = X/255.0
 
 	return t
 	
