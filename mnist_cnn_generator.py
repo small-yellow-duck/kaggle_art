@@ -1,0 +1,135 @@
+'''Trains a simple convnet on the MNIST dataset.
+
+Gets to 99.25% test accuracy after 12 epochs
+(there is still a lot of margin for parameter tuning).
+16 seconds per epoch on a GRID K520 GPU.
+'''
+
+from __future__ import print_function
+import numpy as np
+np.random.seed(1337)  # for reproducibility
+
+from keras.datasets import mnist
+from keras.models import Sequential
+from keras.layers.core import Dense, Dropout, Activation, Flatten
+from keras.layers.convolutional import Convolution2D, MaxPooling2D
+from keras.utils import np_utils
+
+import Image
+from multiprocessing import Pool
+
+
+def filereader(fname):
+	x = np.array(Image.open(fname))
+	
+	if len(x.shape) == 2:
+		#add an additional colour dimension if the only dimensions are width and height
+		return preprocess( x.reshape((1, 1) + x.shape) )
+	if len(x.shape) == 3:
+		return preprocess( x.reshape((1) + x.shape) )	
+	
+def preprocess(X):
+	#this preprocessor crops one pixel along each of the sides of the images
+	#return X[:, :, 1:-1, 1:-1] / 255.0	
+	return X/ 255.0			
+
+#list(myGenerator(y_train, chunk_size, batch_size, fnames_train))[0]
+def myGenerator(y, chunk_size, batch_size, fnames):
+
+	#read and preprocess first file to figure out the image dimensions
+	sample_file = filereader('train/train'+str(0)+'.png')
+	new_img_colours, new_img_rows, new_img_cols = sample_file.shape[1:]
+	
+	pool = Pool(processes=16)
+	
+	while 1:
+		for i in xrange(np.ceil(1.0*len(fnames)/chunk_size).astype(int)):
+			this_chunk_size = len(fnames[i*chunk_size :(i+1)*chunk_size])
+			X = pool.map(filereader, [fnames[i*chunk_size+i2]  for i2 in xrange(this_chunk_size)])
+			X = np.array(X).reshape((-1, new_img_colours, new_img_rows, new_img_cols)) #.astype('float32')
+			#if 'test' in fnames[0]:
+			print(str(i))			
+						
+			for j in xrange(int(np.floor(this_chunk_size/batch_size))): 
+				#training set
+				if not y is None:	
+					yield X[j*batch_size:(j+1)*batch_size], y[i*chunk_size+j*batch_size:i*chunk_size+(j+1)*batch_size]
+				#test set
+				else:
+					yield X[j*batch_size:(j+1)*batch_size]
+
+#pred, Y_test = fit()
+def fit():
+	batch_size = 128
+	nb_epoch = 1
+	chunk_size = 15000
+
+	# input image dimensions
+	img_rows, img_cols = 28, 28
+	# number of convolutional filters to use
+	nb_filters = 32
+	# size of pooling area for max pooling
+	nb_pool = 2
+	# convolution kernel size
+	nb_conv = 3
+
+	#load all the labels for the train and test sets
+	y_train = np.loadtxt('labels_train.csv')
+	y_test = np.loadtxt('labels_test.csv')
+	
+	fnames_train = ['train/train'+str(i)+'.png' for i in xrange(len(y_train))]
+	fnames_test = ['test/test'+str(i)+'.png' for i in xrange(len(y_test))]
+	
+	nb_classes = len(np.unique(y_train))
+
+	# convert class vectors to binary class matrices
+	Y_train = np_utils.to_categorical(y_train.astype(int), nb_classes)
+	Y_test = np_utils.to_categorical(y_test.astype(int), nb_classes)
+
+	model = Sequential()
+
+	model.add(Convolution2D(nb_filters, nb_conv, nb_conv,
+							border_mode='valid',
+							input_shape=(1, img_rows, img_cols)))
+	model.add(Activation('relu'))
+	model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
+	model.add(Activation('relu'))
+	model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
+	model.add(Dropout(0.25))
+
+	model.add(Flatten())
+	model.add(Dense(128))
+	model.add(Activation('relu'))
+	model.add(Dropout(0.5))
+	model.add(Dense(nb_classes))
+	model.add(Activation('softmax'))
+
+	model.compile(loss='categorical_crossentropy',
+				  optimizer='adadelta',
+				  metrics=['accuracy'])
+
+	#model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=nb_epoch,
+	#          verbose=1, validation_data=(X_test, Y_test))
+
+	model.fit_generator(myGenerator(Y_train, chunk_size, batch_size, fnames_train), samples_per_epoch = y_train.shape[0], nb_epoch = nb_epoch, verbose=2,callbacks=[], validation_data=None, class_weight=None) # show_accuracy=True, nb_worker=1 
+		  
+	'''	  	
+	i = 0	
+	pred = np.zeros((len(fnames_test), Y_train.shape[1]))
+	for X, y in myGenerator(Y_test, chunk_size, batch_size, fnames_test):	
+		print('chunk '+str(i))  
+		pred[i*chunk_size:(i+1)*chunk_size, :] = model.predict(X, samples_per_epoch = y_train.shape[0], nb_epoch = nb_epoch, verbose=2,callbacks=[], validation_data=None, class_weight=None) # show_accuracy=True, nb_worker=1 
+		i += 1
+		print(pred[0:10])
+	'''	
+
+	pred = model.predict_generator(myGenerator(None, chunk_size, 100, fnames_test), len(fnames_test)) # show_accuracy=True, nb_worker=1 
+
+	#score = model.evaluate(X_test, Y_test, verbose=0)
+	#print('Test score:', score[0])
+	#print('Test accuracy:', score[1])	
+	print( 'Test accuracy:', np.mean(np.argmax(pred, axis=1) == np.argmax(Y_test, axis=1)) )
+	
+	return pred, Y_test	
+		  
+
