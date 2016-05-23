@@ -1,3 +1,7 @@
+'''
+script for splitting mnist data set into images in train and test folders
+'''
+
 import numpy as np
 import os
 import Image
