@@ -13,8 +13,8 @@ https://github.com/small-yellow-duck/kaggle_art
 import os
 import numpy as np
 import pandas as pd
-# Pil available via Anaconda install
-from Pil import Image
+# PIL available via Anaconda install
+from PIL import Image
 
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import roc_auc_score
@@ -53,8 +53,8 @@ def make_pairs(train_info):
 
     n = train_info.groupby('artist').size()
     n = (2 * n**2).sum()
-    t = pd.DataFrame(np.zeros((n, 4)), columns=[
-                     'artist1', 'image1', 'artist2', 'image2'])
+    pairs_cols = ['artist1', 'image1', 'artist2', 'image2']
+    t = pd.DataFrame(np.zeros((n, 4)), columns=pairs_cols)
     i = 0
     j = 0
     for m in artists:
@@ -69,12 +69,13 @@ def make_pairs(train_info):
         b = train_info[train_info.artist != m][
             ['artist', 'new_filename']].ix[use, :].values
 
-        a2 = pd.DataFrame(np.concatenate([np.repeat(a[:, 0], a.shape[0]).reshape((-1, 1)), np.repeat(a[:, 1], a.shape[
-                          0]).reshape((-1, 1)), np.tile(a, (a.shape[0], 1))], axis=1), columns=['artist1', 'image1', 'artist2', 'image2'])
+        a2 = pd.DataFrame(np.concatenate([np.repeat(a[:, 0], a.shape[0]).reshape((-1, 1)),
+                                         np.repeat(a[:, 1], a.shape[0]).reshape((-1, 1)),
+                                         np.tile(a, (a.shape[0], 1))], axis=1),
+                                         columns=pairs_cols)
         a2 = a2.loc[0:nm, :]
-        b2 = pd.DataFrame(np.concatenate([np.tile(a, (a.shape[0], 1))[0:b.shape[
-                          0], :], b], axis=1),
-                          columns=['artist1', 'image1', 'artist2', 'image2'])
+        b2 = pd.DataFrame(np.concatenate([np.tile(a, (a.shape[0], 1))[0:b.shape[0], :], b],
+                                         axis=1), columns=pairs_cols)
         # print j, i, a2.shape[0], b2.shape[0]
         # print b2
         t.iloc[i:i + a2.shape[0], :] = a2.values
@@ -111,8 +112,8 @@ def prep_data(input, split):
     if split == 'test':
 
         info = get_image_info(data, 'test')
-        pixelsxy = info['pixelsx']*info['pixelsy']
-        info['bytes_per_pixel'] = 1.0*info['size_bytes'] / pixelsxy
+        pixelsxy = info['pixelsx'] * info['pixelsy']
+        info['bytes_per_pixel'] = 1.0 * info['size_bytes'] / pixelsxy
         info['aspect_ratio'] = 1.0 * info['pixelsx'] / info['pixelsy']
 
         data['in_train'] = False
@@ -152,10 +153,8 @@ def prep_data(input, split):
 def train_classifier(x_train, y_train, x_cv, y_cv):
     clf = RandomForestClassifier(n_estimators=100)
 
-    # clf = xgb.XGBClassifier(n_estimators=10000,
-    #                         learning_rate=0.025, max_depth=4)
     print 'starting fit'
-    # excluding the patient_id column from the fit and prediction
+    # excluding the patient_id column from the fit and prediction (patient_id?)
     clf.fit(x_train[::5], y_train[::5])
     print 'starting pred'
 
