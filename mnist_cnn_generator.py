@@ -33,36 +33,43 @@ def preprocess(X):
 	#return X[:, :, 1:-1, 1:-1] / 255.0	
 	return X/ 255.0			
 
-#list(myGenerator(y_train, chunk_size, batch_size, fnames_train))[0]
-def myGenerator(y, chunk_size, batch_size, fnames):
+
+#list(myGenerator(y_train, batch_size, fnames_train))[0]
+def myGenerator(y, batch_size, fnames):
 
 	#read and preprocess first file to figure out the image dimensions
-	sample_file = filereader('train/train'+str(0)+'.png')
+	sample_file = filereader(fnames[0])
 	new_img_colours, new_img_rows, new_img_cols = sample_file.shape[1:]
-	
-	pool = Pool(processes=16)
-	
-	while 1:
-		for i in xrange(np.ceil(1.0*len(fnames)/chunk_size).astype(int)):
-			this_chunk_size = len(fnames[i*chunk_size :(i+1)*chunk_size])
-			X = pool.map(filereader, [fnames[i*chunk_size+i2]  for i2 in xrange(this_chunk_size)])
-			X = np.array(X).reshape((-1, new_img_colours, new_img_rows, new_img_cols)) #.astype('float32')
-			#if 'test' in fnames[0]:
-			print(str(i))			
+
+	order = np.arange(len(fnames))
+	np.random.shuffle(order)
+	y = y[order]
+	fnames = fnames[order]
+
+	while True:
+		for i in xrange(np.ceil(1.0*len(fnames)/batch_size).astype(int)):
+			this_batch_size = fnames[i*batch_size :(i+1)*batch_size].shape[0]
+			X = np.zeros((this_batch_size, new_img_colours, new_img_rows, new_img_cols)).astype('float32')
+			
+			for i2 in xrange(this_batch_size):
+				X[i2] = filereader(fnames[i*batch_size])
 						
-			for j in xrange(int(np.floor(this_chunk_size/batch_size))): 
-				#training set
-				if not y is None:	
-					yield X[j*batch_size:(j+1)*batch_size], y[i*chunk_size+j*batch_size:i*chunk_size+(j+1)*batch_size]
-				#test set
-				else:
-					yield X[j*batch_size:(j+1)*batch_size]
+			#training set
+			if not y is None:	
+				yield X, y[i*batch_size:(i+1)*batch_size]
+			#test set
+			else:
+				yield X
+					
+					
+
+
 
 #pred, Y_test = fit()
 def fit():
 	batch_size = 128
 	nb_epoch = 1
-	chunk_size = 15000
+	chunk_size = 128*100
 
 	# input image dimensions
 	img_rows, img_cols = 28, 28
@@ -77,8 +84,8 @@ def fit():
 	y_train = np.loadtxt('labels_train.csv')
 	y_test = np.loadtxt('labels_test.csv')
 	
-	fnames_train = ['train/train'+str(i)+'.png' for i in xrange(len(y_train))]
-	fnames_test = ['test/test'+str(i)+'.png' for i in xrange(len(y_test))]
+	fnames_train = np.array(['train/train'+str(i)+'.png' for i in xrange(len(y_train))])
+	fnames_test = np.array(['test/test'+str(i)+'.png' for i in xrange(len(y_test))])
 	
 	nb_classes = len(np.unique(y_train))
 
@@ -108,22 +115,10 @@ def fit():
 				  optimizer='adadelta',
 				  metrics=['accuracy'])
 
-	#model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=nb_epoch,
-	#          verbose=1, validation_data=(X_test, Y_test))
-
-	model.fit_generator(myGenerator(Y_train, chunk_size, batch_size, fnames_train), samples_per_epoch = y_train.shape[0], nb_epoch = nb_epoch, verbose=2,callbacks=[], validation_data=None, class_weight=None) # show_accuracy=True, nb_worker=1 
+	model.fit_generator(myGenerator(Y_train, batch_size, fnames_train), samples_per_epoch = Y_train.shape[0], nb_epoch = nb_epoch, verbose=1,callbacks=[], validation_data=None, class_weight=None, max_q_size=10) # show_accuracy=True, nb_worker=1 
 		  
-	'''	  	
-	i = 0	
-	pred = np.zeros((len(fnames_test), Y_train.shape[1]))
-	for X, y in myGenerator(Y_test, chunk_size, batch_size, fnames_test):	
-		print('chunk '+str(i))  
-		pred[i*chunk_size:(i+1)*chunk_size, :] = model.predict(X, samples_per_epoch = y_train.shape[0], nb_epoch = nb_epoch, verbose=2,callbacks=[], validation_data=None, class_weight=None) # show_accuracy=True, nb_worker=1 
-		i += 1
-		print(pred[0:10])
-	'''	
 
-	pred = model.predict_generator(myGenerator(None, chunk_size, 100, fnames_test), len(fnames_test)) # show_accuracy=True, nb_worker=1 
+	pred = model.predict_generator(myGenerator(None, batch_size, fnames_test), len(fnames_test), max_q_size=10) # show_accuracy=True, nb_worker=1 
 
 	#score = model.evaluate(X_test, Y_test, verbose=0)
 	#print('Test score:', score[0])
