@@ -15,6 +15,8 @@ from keras.layers.core import Dense, Dropout, Activation, Flatten
 from keras.layers.convolutional import Convolution2D, MaxPooling2D
 from keras.utils import np_utils
 
+from keras.optimizers import Adam
+
 import Image
 from multiprocessing import Pool
 
@@ -37,13 +39,14 @@ def preprocess(X):
 #list(myGenerator(y_train, batch_size, fnames_train))[0]
 def myGenerator(y, batch_size, fnames):
 
-	#read and preprocess first file to figure out the image dimensions
+	#read and preprocess first file to figure out the data dimensions
 	sample_file = filereader(fnames[0])
 	new_img_colours, new_img_rows, new_img_cols = sample_file.shape[1:]
 
 	order = np.arange(len(fnames))
 	np.random.shuffle(order)
-	y = y[order]
+	if not y is None:
+		y = y[order]
 	fnames = fnames[order]
 
 	while True:
@@ -57,6 +60,7 @@ def myGenerator(y, batch_size, fnames):
 			#training set
 			if not y is None:	
 				yield X, y[i*batch_size:(i+1)*batch_size]
+				
 			#test set
 			else:
 				yield X
@@ -68,13 +72,13 @@ def myGenerator(y, batch_size, fnames):
 #pred, Y_test = fit()
 def fit():
 	batch_size = 128
-	nb_epoch = 1
+	nb_epoch = 30
 	chunk_size = 128*100
 
 	# input image dimensions
 	img_rows, img_cols = 28, 28
 	# number of convolutional filters to use
-	nb_filters = 32
+	nb_filters = 16
 	# size of pooling area for max pooling
 	nb_pool = 2
 	# convolution kernel size
@@ -105,14 +109,15 @@ def fit():
 	model.add(Dropout(0.25))
 
 	model.add(Flatten())
-	model.add(Dense(128))
+	model.add(Dense(32))
 	model.add(Activation('relu'))
 	model.add(Dropout(0.5))
 	model.add(Dense(nb_classes))
 	model.add(Activation('softmax'))
 
+	optimizer = Adam(lr=1e-3)
 	model.compile(loss='categorical_crossentropy',
-				  optimizer='adadelta',
+				  optimizer=optimizer,
 				  metrics=['accuracy'])
 
 	model.fit_generator(myGenerator(Y_train, batch_size, fnames_train), samples_per_epoch = Y_train.shape[0], nb_epoch = nb_epoch, verbose=1,callbacks=[], validation_data=None, class_weight=None, max_q_size=10) # show_accuracy=True, nb_worker=1 
