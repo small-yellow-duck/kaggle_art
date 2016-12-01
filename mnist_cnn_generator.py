@@ -44,18 +44,20 @@ def myGenerator(y, batch_size, fnames):
 	new_img_colours, new_img_rows, new_img_cols = sample_file.shape[1:]
 
 	order = np.arange(len(fnames))
-	np.random.shuffle(order)
-	if not y is None:
-		y = y[order]
-	fnames = fnames[order]
 
 	while True:
+		
+		if not y is None:
+			np.random.shuffle(order)
+			y = y[order]
+			fnames = fnames[order]	
+		
 		for i in xrange(np.ceil(1.0*len(fnames)/batch_size).astype(int)):
 			this_batch_size = fnames[i*batch_size :(i+1)*batch_size].shape[0]
 			X = np.zeros((this_batch_size, new_img_colours, new_img_rows, new_img_cols)).astype('float32')
 			
 			for i2 in xrange(this_batch_size):
-				X[i2] = filereader(fnames[i*batch_size])
+				X[i2] = filereader(fnames[i*batch_size+i2])
 						
 			#training set
 			if not y is None:	
@@ -71,14 +73,13 @@ def myGenerator(y, batch_size, fnames):
 
 #pred, Y_test = fit()
 def fit():
-	batch_size = 128
-	nb_epoch = 30
-	chunk_size = 128*100
+	batch_size = 16
+	nb_epoch = 15
 
 	# input image dimensions
 	img_rows, img_cols = 28, 28
 	# number of convolutional filters to use
-	nb_filters = 16
+	nb_filters = 32
 	# size of pooling area for max pooling
 	nb_pool = 2
 	# convolution kernel size
@@ -99,20 +100,24 @@ def fit():
 
 	model = Sequential()
 
+	
 	model.add(Convolution2D(nb_filters, nb_conv, nb_conv,
-							border_mode='valid',
+							border_mode='valid', init='he_normal',
 							input_shape=(1, img_rows, img_cols)))
 	model.add(Activation('relu'))
-	model.add(Convolution2D(nb_filters, nb_conv, nb_conv))
+	model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
+	model.add(Dropout(0.1))	
+	model.add(Convolution2D(nb_filters, nb_conv, nb_conv, border_mode='valid',init='he_normal'))
 	model.add(Activation('relu'))
 	model.add(MaxPooling2D(pool_size=(nb_pool, nb_pool)))
-	model.add(Dropout(0.25))
+	model.add(Dropout(0.1))
+	
 
 	model.add(Flatten())
-	model.add(Dense(32))
+	model.add(Dense(32, init='he_normal'))
 	model.add(Activation('relu'))
-	model.add(Dropout(0.5))
-	model.add(Dense(nb_classes))
+	model.add(Dropout(0.1))	
+	model.add(Dense(nb_classes, init='he_normal'))
 	model.add(Activation('softmax'))
 
 	optimizer = Adam(lr=1e-3)
@@ -120,7 +125,7 @@ def fit():
 				  optimizer=optimizer,
 				  metrics=['accuracy'])
 
-	model.fit_generator(myGenerator(Y_train, batch_size, fnames_train), samples_per_epoch = Y_train.shape[0], nb_epoch = nb_epoch, verbose=1,callbacks=[], validation_data=None, class_weight=None, max_q_size=10) # show_accuracy=True, nb_worker=1 
+	model.fit_generator(myGenerator(Y_train, batch_size, fnames_train), samples_per_epoch = int(Y_train.shape[0]/batch_size), nb_epoch = nb_epoch, verbose=1,callbacks=[], validation_data=None, class_weight=None, max_q_size=10) # show_accuracy=True, nb_worker=1 
 		  
 
 	pred = model.predict_generator(myGenerator(None, batch_size, fnames_test), len(fnames_test), max_q_size=10) # show_accuracy=True, nb_worker=1 
